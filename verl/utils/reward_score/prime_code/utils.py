@@ -18,7 +18,8 @@ import multiprocessing
 import os
 import sys
 import traceback
-from typing import Optional
+import re
+from typing import Optional, Tuple
 
 from .testing_util import run_test
 
@@ -58,3 +59,44 @@ def check_correctness(in_outs: Optional[dict], generation, timeout=10, debug=Tru
         if debug:
             print("global timeout")
     return result[0], metadata_list
+
+OPEN = re.compile(r"<\s*think\s*>", re.IGNORECASE)
+CLOSE = re.compile(r"<\s*/\s*think\s*>", re.IGNORECASE)
+
+
+def extract_after_validation(text: str) -> Tuple[bool, str]:
+    """
+    Validate whether the input string contains exactly one <think>...</think> block
+    with non-empty content inside, and return the text that follows the block.
+
+    Validation rules:
+        1. There must be exactly one <think> opening tag and one </think> closing tag.
+        2. The tags must be in the correct order (open before close).
+        3. The content between <think> and </think> must not be empty or whitespace-only.
+
+    Args:
+        text (str): The model-generated output string to check.
+
+    Returns:
+        Tuple[bool, str]:
+            - bool: True if all validation conditions are satisfied, otherwise False.
+            - str: The text that comes after the </think> closing tag
+                   (empty string if validation fails).
+    """
+    open_matches = list(OPEN.finditer(text))
+    close_matches = list(CLOSE.finditer(text))
+
+    if len(open_matches) != 1 or len(close_matches) != 1:
+        return False, ""
+
+    open_m, close_m = open_matches[0], close_matches[0]
+
+    if close_m.start() < open_m.end():
+        return False, ""
+
+    inside_content = text[open_m.end():close_m.start()].strip()
+    if not inside_content:  
+        return False, ""
+
+    after_text = text[close_m.end():].strip()
+    return True, after_text

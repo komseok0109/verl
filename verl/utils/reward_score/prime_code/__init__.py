@@ -16,9 +16,13 @@ import json
 import traceback
 
 from .utils import check_correctness as apps_check_correctness
-
+from .utils import extract_after_validation
 
 def compute_score(completion, test_cases, continuous=False):
+    is_valid, completion = extract_after_validation(completion)
+    if not is_valid:
+        return is_valid, [{"error": "Invalid Reasoning Format"}]
+
     # try to get code solution from completion. if the completion is pure code, this will not take effect.
     solution = completion.split("```python")[-1].split("```")[0]
     try:

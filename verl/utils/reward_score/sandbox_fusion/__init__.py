@@ -15,7 +15,7 @@ import json
 import logging
 import traceback
 
-from .utils import check_correctness
+from .utils import check_correctness, extract_after_validation
 
 """
 Verify code correctness using the Sandbox Fusion (https://github.com/bytedance/SandboxFusion).
@@ -44,6 +44,10 @@ def compute_score(
         score: Float score (0.0 to 1.0).
         metadata_list: List containing execution metadata for each test case.
     """
+    is_valid, completion = extract_after_validation(completion)
+    if not is_valid:
+        return 0.0, [{"error": "Invalid reasoning format"}]
+
     solution = completion
     if "```python" in completion:
         solution = completion.split("```python")[-1].split("```")[0]
@@ -100,14 +104,17 @@ def compute_score(
                 score = 0.0
             else:
                 passed_count = sum(1 for r in res_list[:num_to_consider] if r is True)
-                score = passed_count / num_to_consider
+                score = 1.0 if passed_count == num_to_consider else 0.0
             # Return all metadata, even if score is based on the first N
             final_metadata = metadata_list
         else:
             # Calculate pass rate for all test cases
             passed_count = sum(1 for r in res_list if r is True)
             total_cases = len(res_list)
-            score = passed_count / total_cases if total_cases > 0 else 0.0
+            if total_cases > 0:
+                score = 1.0 if passed_count == total_cases else 0.0
+            else:
+                score = 0.0
             final_metadata = metadata_list
 
     except Exception as e:
