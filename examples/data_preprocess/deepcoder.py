@@ -85,10 +85,10 @@ if __name__ == "__main__":
                 data = {
                     "data_source": tests["dataset_type"],
                     "prompt": [
-                        # {
-                        #     "role": "system",
-                        #     "content": 
-                        # },
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant help user solve problems."
+                        },
                         {
                             "role": "user",
                             "content": question,
@@ -133,6 +133,10 @@ if __name__ == "__main__":
                 "data_source": "codeforces",
                 "prompt": [
                     {
+                        "role": "system",
+                        "content": "You are a helpful assistant help user solve problems."
+                    },
+                    {
                         "role": "user",
                         "content": question,
                     }
@@ -147,8 +151,8 @@ if __name__ == "__main__":
             return data
         return train_process_fn if split == "train" else test_process_fn
 
-    train_dataset = train_dataset.map(function=make_map_fn("train", args), with_indices=True, batched=True, batch_size = 100)
-    test_dataset = test_dataset.map(function=make_map_fn("test", args), with_indices=True)
+    train_dataset = train_dataset.map(function=make_map_fn("train", args), with_indices=True, batched=True, batch_size = 100, remove_columns=["verification_info", "task_type", "problem_id"])
+    test_dataset = test_dataset.map(function=make_map_fn("test", args), with_indices=True, remove_columns=["tests", "problem"])
 
     local_dir = args.local_dir
     hdfs_dir = args.hdfs_dir
