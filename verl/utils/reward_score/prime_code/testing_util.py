@@ -626,6 +626,7 @@ def reliability_guard(maximum_memory_bytes=None):
 
     builtins.exit = None
     builtins.quit = None
+    builtins.help = None
 
     import os
 
@@ -668,7 +669,7 @@ def reliability_guard(maximum_memory_bytes=None):
 
     subprocess.Popen = None  # type: ignore
 
-    __builtins__["help"] = None
+    # __builtins__["help"] = None
 
     import sys
 

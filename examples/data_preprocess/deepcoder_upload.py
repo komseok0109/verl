@@ -23,8 +23,54 @@ import json
 
 import datasets
 from datasets import concatenate_datasets, DatasetDict
+from huggingface_hub import create_repo, upload_file
 
 # from verl.utils.hdfs_io import copy, makedirs
+
+
+from huggingface_hub import upload_file
+import tempfile, os, json
+
+def push_jsonl_streaming(dataset, repo_id, split, shard_size=50000):
+    file_index = 0
+    buffer = []
+    line_count = 0
+
+    for ex in dataset:
+        buffer.append(json.dumps(ex, ensure_ascii=False))
+        line_count += 1
+
+        if line_count >= shard_size:
+            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmpf:
+                tmpf.write("\n".join(buffer))
+                tmp_path = tmpf.name
+
+            filename = f"{split}_{file_index:05d}.jsonl"
+            upload_file(
+                path_or_fileobj=tmp_path,
+                path_in_repo=filename,
+                repo_id=repo_id,
+                repo_type="dataset"
+            )
+            os.remove(tmp_path)
+
+            buffer = []
+            line_count = 0
+            file_index += 1
+    if buffer:
+        with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as tmpf:
+            tmpf.write("\n".join(buffer))
+            tmp_path = tmpf.name
+
+        filename = f"{split}_{file_index:05d}.jsonl"
+        upload_file(
+            path_or_fileobj=tmp_path,
+            path_in_repo=filename,
+            repo_id=repo_id,
+            repo_type="dataset"
+        )
+        os.remove(tmp_path)
+
 
 
 def extract_test_case(tests, args, branch):
@@ -42,6 +88,22 @@ def extract_test_case(tests, args, branch):
         item["inputs"] = inputs[:max_tests]
         item["outputs"] = outputs[:max_tests]
     return item
+
+THRESHOLD = 80 * 1024 * 1024  # 100MB
+
+def mark_large_rows(example, idx):
+    gt = example["reward_model"]["ground_truth"]
+    if len(gt.encode("utf-8")) >= THRESHOLD:
+        print(f"{idx} DELETEd")
+        return False   
+    return True     
+
+def reindex_batch(batch, indices):
+    batch["extra_info"] = [
+        {**ei, "index": idx} for ei, idx in zip(batch["extra_info"], indices)
+    ]
+    return batch
+
 
 
 if __name__ == "__main__":
@@ -151,10 +213,16 @@ if __name__ == "__main__":
     train_dataset = concatenate_datasets([prime_train_dataset, taco_train_dataset, lcb_train_dataset])
     test_dataset = concatenate_datasets([cf_test_dataset, lcb_test_dataset])
 
-    local_dir = args.local_dir
+    train_dataset = train_dataset.filter(mark_large_rows, with_indices=True)
+    train_dataset = train_dataset.map(reindex_batch, with_indices=True, batched = True, batch_size = 100)
 
-    train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
-    test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
+    push_jsonl_streaming(train_dataset, "ming9999/deepcoder-train", "train", shard_size=500)
+    push_jsonl_streaming(test_dataset, "ming9999/deepcoder-train", "test")
+
+    # local_dir = args.local_dir
+
+    # train_dataset.to_parquet(os.path.join(local_dir, "train.parquet"))
+    # test_dataset.to_parquet(os.path.join(local_dir, "test.parquet"))
 
     # dataset_dict = DatasetDict({
     #     "train": train_dataset,

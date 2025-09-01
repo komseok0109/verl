@@ -34,8 +34,8 @@ def compute_score(completion, test_cases, continuous=False):
 
         # Complete check on all in-out pairs first. If there is no failure, per-sample test can be skipped.
         try:
-            res, metadata = apps_check_correctness(in_outs=test_cases, generation=solution, timeout=5, debug=False)
-            metadata = dict(enumerate(metadata))[0]
+            res, metadata_list = apps_check_correctness(in_outs=test_cases, generation=solution, timeout=5, debug=False)
+            metadata = dict(enumerate(metadata_list))[0]
             success = all(map(lambda x: x is True, res))
             if success:
                 return success, metadata
